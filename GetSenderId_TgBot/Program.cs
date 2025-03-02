@@ -43,44 +43,32 @@ namespace GetSenderId_TgBot
                     await _client.SendMessage(chat, "User has <b>disabled \'forwarding\'</b> in settings, getting id is impossible", ParseMode.Html, cancellationToken: cancellationArg);
                     break;
                 case MessageOriginType.User:
-                    UserId(msg);
-                    break;
-                case MessageOriginType.Channel:
-                    ChannelId(msg);
+                    await UserId(msg);
                     break;
                 case MessageOriginType.Chat:
-                    ChatId(msg);
+                    await ChatId(msg);
                     break;
                 default: return;
             }
 
         }
 
-        private void ChannelId(Message msg)
-        {
-            var chat = msg.Chat;
-            
-            if (msg.ForwardFrom is null) return;
-            var idText = msg.ForwardFrom.Id.ToString();
-            _client.SendMessage(chat, $"Forwarded from: \n<b>Channel Id:</b> <code>{idText}</code>", ParseMode.Html);
-        }
-
-        private void ChatId(Message msg)
+        private async Task ChatId(Message msg)
         {
             var chat = msg.Chat;
 
             if (msg.ForwardFromChat is null) return;
-            var idText = msg.ForwardFromChat.Id.ToString();
-            _client.SendMessage(chat, $"Forwarded from: \n<b>Channel Id:</b> <code>{idText}</code>", ParseMode.Html);
+            var idText = msg.ForwardFromChat.Id;
+            await _client.SendMessage(chat, $"Forwarded from: \n<b>Channel Id:</b> <code>{idText}</code>", ParseMode.Html);
         }
 
-        private void UserId(Message msg)
+        private async Task UserId(Message msg)
         {
             var chat = msg.Chat;
             if (msg.ForwardFrom is null) return;
-            var idText = msg.ForwardFrom.Id.ToString();
+            var idText = msg.ForwardFrom.Id;
             var username = msg.ForwardFrom.Username;
-            _client.SendMessage(chat, $"Forwarded from: \n<b>User Id:</b> <code>{idText}</code> {(username is null ? "" : $"\n<b>@:</b> @{username}")}", ParseMode.Html);
+            await _client.SendMessage(chat, $"Forwarded from: \n<b>User Id:</b> <code>{idText}</code> {(username is null ? "" : $"\n<b>@:</b> @{username}")}", ParseMode.Html);
         }
 
     }
