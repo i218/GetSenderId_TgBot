@@ -26,9 +26,10 @@ namespace GetSenderId_TgBot
             _client.StartReceiving(UpdateHandler, PollingErrorHandler);
         }
 
-        private async Task PollingErrorHandler(ITelegramBotClient arg1, Exception excArg, HandleErrorSource arg3, CancellationToken arg4)
+        private static Task PollingErrorHandler(ITelegramBotClient arg1, Exception excArg, HandleErrorSource arg3, CancellationToken arg4)
         {
             Console.WriteLine(excArg.Message);
+            return Task.CompletedTask;
         }
 
         private async Task UpdateHandler(ITelegramBotClient arg1, Update updateArg, CancellationToken cancellationArg)
@@ -68,7 +69,8 @@ namespace GetSenderId_TgBot
             if (msg.ForwardFrom is null) return;
             var idText = msg.ForwardFrom.Id;
             var username = msg.ForwardFrom.Username;
-            await _client.SendMessage(chat, $"Forwarded from: \n<b>User Id:</b> <code>{idText}</code> {(username is null ? "" : $"\n<b>@:</b> @{username}")}", ParseMode.Html);
+            var usernameText = username is null ? "" : $"\n<b>@:</b> @{username}";
+            await _client.SendMessage(chat, $"Forwarded from: \n<b>User Id:</b> <code>{idText}</code> {usernameText}", ParseMode.Html);
         }
 
     }
