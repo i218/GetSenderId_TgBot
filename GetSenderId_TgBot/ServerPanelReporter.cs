@@ -14,14 +14,19 @@ internal sealed class ServerPanelReporter : IDisposable
 
     private readonly HttpClient _http;
     private readonly Action<PanelCommand> _commandHandler;
+    private readonly Action<bool> _availabilityChanged;
     private readonly Process _process = Process.GetCurrentProcess();
     private readonly Stopwatch _uptime = Stopwatch.StartNew();
-    private bool _unavailableReported;
+    private bool? _isAvailable;
 
-    internal ServerPanelReporter(HttpClient http, Action<PanelCommand> commandHandler)
+    internal ServerPanelReporter(
+        HttpClient http,
+        Action<PanelCommand> commandHandler,
+        Action<bool> availabilityChanged)
     {
         _http = http;
         _commandHandler = commandHandler;
+        _availabilityChanged = availabilityChanged;
     }
 
     internal async Task RunAsync(CancellationToken stoppingToken)
@@ -50,7 +55,7 @@ internal sealed class ServerPanelReporter : IDisposable
                     $"/api/hosts/{HostId}/commands",
                     stoppingToken) ?? [];
 
-                ReportAvailable();
+                SetAvailability(true);
 
                 foreach (var command in commands)
                 {
@@ -68,7 +73,7 @@ internal sealed class ServerPanelReporter : IDisposable
             catch (Exception exception) when (
                 exception is HttpRequestException or TaskCanceledException or JsonException or NotSupportedException)
             {
-                ReportUnavailable(exception);
+                SetAvailability(false);
             }
 
             try
@@ -87,25 +92,14 @@ internal sealed class ServerPanelReporter : IDisposable
         _process.Dispose();
     }
 
-    private void ReportUnavailable(Exception exception)
+    private void SetAvailability(bool available)
     {
-        if (_unavailableReported)
+        if (_isAvailable == available)
         {
             return;
         }
 
-        _unavailableReported = true;
-        Console.Error.WriteLine($"ServerPanel is unavailable: {exception.GetType().Name}");
-    }
-
-    private void ReportAvailable()
-    {
-        if (!_unavailableReported)
-        {
-            return;
-        }
-
-        _unavailableReported = false;
-        Console.WriteLine("ServerPanel connection restored.");
+        _isAvailable = available;
+        _availabilityChanged(available);
     }
 }
