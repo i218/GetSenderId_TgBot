@@ -7,11 +7,11 @@ internal static class Program
     {
         ApplicationConfiguration.Initialize();
 
-        var token = Environment.GetEnvironmentVariable("TELEGRAM_BOT_TOKEN");
+        var token = Environment.GetEnvironmentVariable("GETSENDERID_TGBOT_TOKEN");
         if (string.IsNullOrWhiteSpace(token))
         {
             MessageBox.Show(
-                "Перед запуском задайте переменную окружения TELEGRAM_BOT_TOKEN.",
+                "Перед запуском задайте переменную окружения GETSENDERID_TGBOT_TOKEN.",
                 "GetSenderId Telegram Bot",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);

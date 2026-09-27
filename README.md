@@ -14,7 +14,7 @@
 Токен передаётся только через переменную окружения:
 
 ```powershell
-$env:TELEGRAM_BOT_TOKEN = "<bot token>"
+$env:GETSENDERID_TGBOT_TOKEN = "<bot token>"
 dotnet run --project GetSenderId_TgBot
 ```
 
