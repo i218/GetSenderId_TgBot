@@ -17,6 +17,8 @@ internal sealed class ServerPanelReporter : IDisposable
     private readonly Action<bool> _availabilityChanged;
     private readonly Process _process = Process.GetCurrentProcess();
     private readonly Stopwatch _uptime = Stopwatch.StartNew();
+    private TimeSpan _previousProcessorTime;
+    private long _previousCpuTimestamp;
     private bool? _isAvailable;
 
     internal ServerPanelReporter(
@@ -27,6 +29,10 @@ internal sealed class ServerPanelReporter : IDisposable
         _http = http;
         _commandHandler = commandHandler;
         _availabilityChanged = availabilityChanged;
+
+        _process.Refresh();
+        _previousProcessorTime = _process.TotalProcessorTime;
+        _previousCpuTimestamp = Stopwatch.GetTimestamp();
     }
 
     internal async Task RunAsync(CancellationToken stoppingToken)
@@ -43,6 +49,7 @@ internal sealed class ServerPanelReporter : IDisposable
                     {
                         name = "GetSenderId Telegram Bot",
                         environment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production",
+                        cpuPercent = GetCpuPercent(),
                         memoryMb = _process.WorkingSet64 / 1024d / 1024d,
                         uptimeSeconds = (long)_uptime.Elapsed.TotalSeconds,
                         version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString(),
@@ -101,5 +108,24 @@ internal sealed class ServerPanelReporter : IDisposable
 
         _isAvailable = available;
         _availabilityChanged(available);
+    }
+
+    private double GetCpuPercent()
+    {
+        var processorTime = _process.TotalProcessorTime;
+        var timestamp = Stopwatch.GetTimestamp();
+        var elapsedSeconds = (timestamp - _previousCpuTimestamp) / (double)Stopwatch.Frequency;
+        var processorSeconds = (processorTime - _previousProcessorTime).TotalSeconds;
+
+        _previousProcessorTime = processorTime;
+        _previousCpuTimestamp = timestamp;
+
+        if (elapsedSeconds <= 0)
+        {
+            return 0;
+        }
+
+        var usage = processorSeconds / elapsedSeconds / Environment.ProcessorCount * 100;
+        return Math.Clamp(usage, 0, 100);
     }
 }

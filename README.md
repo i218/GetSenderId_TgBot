@@ -55,12 +55,13 @@ The permanent host ID is `get-sender-id-tgbot`. The following information is rep
 
 - Process name
 - Environment
+- Process CPU usage, normalized to a `0–100%` range across all logical processors
 - Memory usage
 - Uptime
 - Assembly version
 - Application health status: `Healthy`
 
-CPU usage, message counts, request rate, error rate, and all Telegram fields are deliberately excluded. The panel only needs enough information to determine whether the process is alive.
+Message counts, request rate, error rate, and all Telegram fields are deliberately excluded. The panel receives only operational process metrics needed for monitoring.
 
 Commands are handled using a fixed allowlist:
 
