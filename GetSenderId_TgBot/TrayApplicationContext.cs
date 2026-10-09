@@ -121,36 +121,40 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _statusForm.BringToFront();
     }
 
-    private void HandlePanelCommand(PanelCommand command)
+    private PanelCommandExecution HandlePanelCommand(PanelCommand command)
     {
-        PostToUi(() =>
+        switch (command.Action?.Trim().ToLowerInvariant())
         {
-            switch (command.Action?.Trim().ToLowerInvariant())
-            {
-                case "start":
-                    _statusForm.SetBotStatus("бот уже запущен");
-                    break;
+            case "start":
+                PostToUi(() => _statusForm.SetBotStatus("бот уже запущен"));
+                return new PanelCommandExecution(true, "The bot is already running.");
 
-                case "stop":
-                    _ = RequestExitAsync();
-                    break;
+            case "stop":
+                return new PanelCommandExecution(
+                    true,
+                    "Stop accepted; shutting down.",
+                    () => PostToUi(() => _ = RequestExitAsync()));
 
-                case "restart":
-                    if (TryStartReplacementProcess())
-                    {
-                        _ = RequestExitAsync(RestartRequestedExitCode);
-                    }
-                    else
-                    {
-                        _statusForm.SetBotStatus("перезапуск доступен только из собственного .exe");
-                    }
-                    break;
+            case "restart":
+                if (!CanStartReplacementProcess())
+                {
+                    PostToUi(() => _statusForm.SetBotStatus(
+                        "перезапуск доступен только из собственного .exe"));
+                    return new PanelCommandExecution(
+                        false,
+                        "Restart is available only when running the application executable.");
+                }
 
-                default:
-                    _statusForm.SetBotStatus("неизвестная команда ServerPanel отклонена");
-                    break;
-            }
-        });
+                return new PanelCommandExecution(
+                    true,
+                    "Restart accepted; launching a replacement process.",
+                    () => PostToUi(RestartAfterAcknowledgement));
+
+            default:
+                PostToUi(() => _statusForm.SetBotStatus(
+                    "неизвестная команда ServerPanel отклонена"));
+                return new PanelCommandExecution(false, "Unsupported command action.");
+        }
     }
 
     private void PostToUi(Action action)
@@ -193,20 +197,38 @@ internal sealed class TrayApplicationContext : ApplicationContext
         ExitThread();
     }
 
-    private static bool TryStartReplacementProcess()
+    private void RestartAfterAcknowledgement()
+    {
+        if (TryStartReplacementProcess())
+        {
+            _ = RequestExitAsync(RestartRequestedExitCode);
+            return;
+        }
+
+        _statusForm.SetBotStatus("не удалось запустить новый экземпляр");
+    }
+
+    private static bool CanStartReplacementProcess()
     {
         var processPath = Environment.ProcessPath;
         var expectedName = typeof(Program).Assembly.GetName().Name;
 
-        if (string.IsNullOrWhiteSpace(processPath) ||
-            !File.Exists(processPath) ||
-            !string.Equals(
-                Path.GetFileNameWithoutExtension(processPath),
-                expectedName,
-                StringComparison.OrdinalIgnoreCase))
+        return !string.IsNullOrWhiteSpace(processPath) &&
+               File.Exists(processPath) &&
+               string.Equals(
+                   Path.GetFileNameWithoutExtension(processPath),
+                   expectedName,
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryStartReplacementProcess()
+    {
+        if (!CanStartReplacementProcess())
         {
             return false;
         }
+
+        var processPath = Environment.ProcessPath!;
 
         try
         {

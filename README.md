@@ -73,4 +73,6 @@ Commands are handled using a fixed allowlist:
 
 `restart` is rejected when the application is started with `dotnet run`, because the current process in that mode is the shared `dotnet.exe`, not the application executable.
 
-ServerPanel delivers commands with at-most-once semantics: after a successful `GET`, a command is considered delivered and may be lost if the process exits unexpectedly before applying it. Do not expose the panel API beyond loopback without TLS, authentication, and a separate authorization model.
+ServerPanel leases commands for 30 seconds. The bot reports each command result to the ACK endpoint using the current `leaseToken`; a command whose acknowledgement is not accepted can be leased again. Unknown actions are rejected through a failed ACK. For `stop` and `restart`, the bot sends a successful acknowledgement before terminating the current process so the ACK is not lost during shutdown.
+
+Command IDs are stable across redelivery, while lease tokens are not. Any future state-changing command handler must therefore remain idempotent by command ID. Do not expose the panel API beyond loopback without TLS, authentication, and a separate authorization model.
