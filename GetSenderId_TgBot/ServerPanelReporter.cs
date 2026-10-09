@@ -5,7 +5,17 @@ using System.Text.Json;
 
 namespace GetSenderId_TgBot;
 
-internal sealed record PanelCommand(string? Id, string? Action, DateTimeOffset CreatedAtUtc);
+internal sealed record PanelCommand(
+    string? Id,
+    string? Action,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset LeaseExpiresAtUtc,
+    string? LeaseToken);
+
+internal sealed record PanelCommandExecution(
+    bool Succeeded,
+    string Result,
+    Action? AfterAcknowledgement = null);
 
 internal sealed class ServerPanelReporter : IDisposable
 {
@@ -13,7 +23,7 @@ internal sealed class ServerPanelReporter : IDisposable
     private static readonly TimeSpan Interval = TimeSpan.FromSeconds(5);
 
     private readonly HttpClient _http;
-    private readonly Action<PanelCommand> _commandHandler;
+    private readonly Func<PanelCommand, PanelCommandExecution> _commandHandler;
     private readonly Action<bool> _availabilityChanged;
     private readonly Process _process = Process.GetCurrentProcess();
     private readonly Stopwatch _uptime = Stopwatch.StartNew();
@@ -23,7 +33,7 @@ internal sealed class ServerPanelReporter : IDisposable
 
     internal ServerPanelReporter(
         HttpClient http,
-        Action<PanelCommand> commandHandler,
+        Func<PanelCommand, PanelCommandExecution> commandHandler,
         Action<bool> availabilityChanged)
     {
         _http = http;
@@ -66,7 +76,7 @@ internal sealed class ServerPanelReporter : IDisposable
 
                 foreach (var command in commands)
                 {
-                    _commandHandler(command);
+                    await ExecuteAndAcknowledgeAsync(command, stoppingToken);
                     if (stoppingToken.IsCancellationRequested)
                     {
                         break;
@@ -108,6 +118,29 @@ internal sealed class ServerPanelReporter : IDisposable
 
         _isAvailable = available;
         _availabilityChanged(available);
+    }
+
+    private async Task ExecuteAndAcknowledgeAsync(
+        PanelCommand command,
+        CancellationToken stoppingToken)
+    {
+        if (string.IsNullOrWhiteSpace(command.Id) || string.IsNullOrWhiteSpace(command.LeaseToken))
+        {
+            return;
+        }
+
+        var execution = _commandHandler(command);
+        using var acknowledgementResponse = await _http.PostAsJsonAsync(
+            $"/api/hosts/{HostId}/commands/{Uri.EscapeDataString(command.Id)}/ack",
+            new
+            {
+                leaseToken = command.LeaseToken,
+                succeeded = execution.Succeeded,
+                result = execution.Result
+            },
+            stoppingToken);
+        acknowledgementResponse.EnsureSuccessStatusCode();
+        execution.AfterAcknowledgement?.Invoke();
     }
 
     private double GetCpuPercent()
