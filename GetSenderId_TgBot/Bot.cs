@@ -108,13 +108,9 @@ internal sealed class Bot : IDisposable
             return;
         }
 
-        const string startText =
-            "Hi! Forward a message here and the bot will return the available sender or channel ID." +
-            "\r\n\r\nIts current privacy level is structural: the bot processes updates in memory and has no message storage or user analytics. " +
-            "ServerPanel receives process health only — never message text, Telegram IDs, usernames or chat data. " +
-            "Telegram itself still processes messages delivered through its platform." +
-            "\r\n\r\nUnforwarded messages are ignored. Source code: " +
-            "<a href='https://github.com/i218/GetSenderId_TgBot'>GitHub</a>.";
+        const string startText = "Hi there, this bot does literally what name says - he gives u the ID of user message was forwarded from." +
+                                 "\r\n\r\nIt won't make logs, or reply to unforwarded messages, feel free to use it as an storage 😁" +
+                                 "\r\n\r\nIt's also an open-source, u can find code <a href='https://github.com/i218/GetSenderId_TgBot'>here</a>.";
 
         if (message.Text == "/start")
         {
