@@ -36,6 +36,7 @@ Restart the application after changing a persistent environment variable. `Secre
 
 The application starts hidden and immediately places its icon in the Windows notification area.
 
+- Only one instance can run in the current Windows session. Starting the application again activates the existing instance's status window instead of starting another Telegram polling loop.
 - Double-click the icon or select the open command from its menu to display the status window.
 - The minimize button and the close button hide the window back to the tray without stopping the bot.
 - Select the exit command from the tray icon menu to stop Telegram polling gracefully and terminate the process.
@@ -72,6 +73,8 @@ Commands are handled using a fixed allowlist:
 | `restart` | Starts the same trusted `.exe`, then terminates the current process |
 
 `restart` is rejected when the application is started with `dotnet run`, because the current process in that mode is the shared `dotnet.exe`, not the application executable.
+
+During an acknowledged restart, the replacement process waits for the current process to release the single-instance lock before starting. This preserves restart behavior without allowing two active bot instances.
 
 ServerPanel leases commands for 30 seconds. The bot reports each command result to the ACK endpoint using the current `leaseToken`; a command whose acknowledgement is not accepted can be leased again. Unknown actions are rejected through a failed ACK. For `stop` and `restart`, the bot sends a successful acknowledgement before terminating the current process so the ACK is not lost during shutdown.
 

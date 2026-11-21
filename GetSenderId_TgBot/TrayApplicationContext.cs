@@ -15,9 +15,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly ContextMenuStrip _trayMenu;
     private readonly NotifyIcon _trayIcon;
     private readonly StatusForm _statusForm;
+    private readonly RegisteredWaitHandle _activationRegistration;
     private bool _exitRequested;
 
-    internal TrayApplicationContext(string token, bool showOnStart = false)
+    internal TrayApplicationContext(
+        string token,
+        EventWaitHandle activationEvent,
+        bool showOnStart = false)
     {
         _appIcon = LoadApplicationIcon();
         _statusForm = new StatusForm(_appIcon);
@@ -43,6 +47,19 @@ internal sealed class TrayApplicationContext : ApplicationContext
             Visible = true
         };
         _trayIcon.DoubleClick += (_, _) => ShowStatusWindow();
+
+        _activationRegistration = ThreadPool.RegisterWaitForSingleObject(
+            activationEvent,
+            (_, timedOut) =>
+            {
+                if (!timedOut)
+                {
+                    PostToUi(ShowStatusWindow);
+                }
+            },
+            null,
+            Timeout.Infinite,
+            executeOnlyOnce: false);
 
         _bot = new Bot(token, status => PostToUi(() => _statusForm.SetBotStatus(status)));
         _bot.Start(_shutdown.Token);
@@ -70,6 +87,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         if (disposing)
         {
+            _activationRegistration.Unregister(null);
             _trayIcon.Visible = false;
             _trayIcon.Dispose();
             _trayMenu.Dispose();
@@ -236,7 +254,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
             {
                 FileName = processPath,
                 WorkingDirectory = Environment.CurrentDirectory,
-                UseShellExecute = false
+                UseShellExecute = false,
+                ArgumentList =
+                {
+                    "--restart-after",
+                    Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                }
             });
             return true;
         }
