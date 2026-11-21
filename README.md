@@ -37,6 +37,7 @@ Restart the application after changing a persistent environment variable. `Secre
 The application starts hidden and immediately places its icon in the Windows notification area.
 
 - Only one instance can run in the current Windows session. Starting the application again activates the existing instance's status window instead of starting another Telegram polling loop.
+- If the same bot token is polled from another Windows session or another machine, Telegram returns `409 Conflict`. The affected instance stops its own polling to avoid a retry fight, remains available in the tray for diagnostics, and reports the conflict through its status window and ServerPanel health. Restart that instance after removing the competing poller.
 - Double-click the icon or select the open command from its menu to display the status window.
 - The minimize button and the close button hide the window back to the tray without stopping the bot.
 - Select the exit command from the tray icon menu to stop Telegram polling gracefully and terminate the process.

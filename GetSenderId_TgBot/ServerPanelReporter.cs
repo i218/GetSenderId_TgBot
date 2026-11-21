@@ -25,6 +25,7 @@ internal sealed class ServerPanelReporter : IDisposable
     private readonly HttpClient _http;
     private readonly Func<PanelCommand, PanelCommandExecution> _commandHandler;
     private readonly Action<bool> _availabilityChanged;
+    private readonly Func<string> _healthProvider;
     private readonly Process _process = Process.GetCurrentProcess();
     private readonly Stopwatch _uptime = Stopwatch.StartNew();
     private TimeSpan _previousProcessorTime;
@@ -34,11 +35,13 @@ internal sealed class ServerPanelReporter : IDisposable
     internal ServerPanelReporter(
         HttpClient http,
         Func<PanelCommand, PanelCommandExecution> commandHandler,
-        Action<bool> availabilityChanged)
+        Action<bool> availabilityChanged,
+        Func<string> healthProvider)
     {
         _http = http;
         _commandHandler = commandHandler;
         _availabilityChanged = availabilityChanged;
+        _healthProvider = healthProvider;
 
         _process.Refresh();
         _previousProcessorTime = _process.TotalProcessorTime;
@@ -63,7 +66,7 @@ internal sealed class ServerPanelReporter : IDisposable
                         memoryMb = _process.WorkingSet64 / 1024d / 1024d,
                         uptimeSeconds = (long)_uptime.Elapsed.TotalSeconds,
                         version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString(),
-                        health = "Healthy"
+                        health = _healthProvider()
                     },
                     stoppingToken);
                 heartbeatResponse.EnsureSuccessStatusCode();

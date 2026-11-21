@@ -1,4 +1,5 @@
 using Telegram.Bot;
+using Telegram.Bot.Exceptions;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -6,23 +7,38 @@ using TelegramMessage = Telegram.Bot.Types.Message;
 
 namespace GetSenderId_TgBot;
 
-internal sealed class Bot
+internal sealed class Bot : IDisposable
 {
     private const long PollingErrorLogIntervalMilliseconds = 30_000;
 
     private readonly TelegramBotClient _client;
+    private readonly Action<string> _reportHealth;
     private readonly Action<string> _reportStatus;
+    private CancellationTokenSource? _pollingCancellation;
+    private int _pollingConflictDetected;
     private long _nextPollingErrorLogAt;
 
-    internal Bot(string token, Action<string> reportStatus)
+    internal Bot(string token, Action<string> reportStatus, Action<string> reportHealth)
     {
         _client = new TelegramBotClient(token);
         _reportStatus = reportStatus;
+        _reportHealth = reportHealth;
     }
 
     internal void Start(CancellationToken cancellationToken)
     {
-        _client.StartReceiving(UpdateHandler, PollingErrorHandler, cancellationToken: cancellationToken);
+        _pollingCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _client.StartReceiving(
+            UpdateHandler,
+            PollingErrorHandler,
+            cancellationToken: _pollingCancellation.Token);
+    }
+
+    public void Dispose()
+    {
+        var pollingCancellation = Interlocked.Exchange(ref _pollingCancellation, null);
+        pollingCancellation?.Cancel();
+        pollingCancellation?.Dispose();
     }
 
     private Task PollingErrorHandler(
@@ -31,6 +47,21 @@ internal sealed class Bot
         HandleErrorSource source,
         CancellationToken cancellationToken)
     {
+        if (exception is ApiRequestException { ErrorCode: 409 })
+        {
+            if (Interlocked.Exchange(ref _pollingConflictDetected, 1) == 0)
+            {
+                _reportStatus("конфликт: токен занят другим экземпляром");
+                _reportHealth("Conflict: another instance is polling Telegram");
+            }
+
+            // Continuing to retry getUpdates would make two instances continuously terminate
+            // each other's long-poll request. Keep the process visible for diagnostics, but
+            // yield Telegram polling to the other instance until this process is restarted.
+            StopPolling();
+            return Task.CompletedTask;
+        }
+
         var now = Environment.TickCount64;
         var nextLogAt = Volatile.Read(ref _nextPollingErrorLogAt);
         if (now >= nextLogAt &&
@@ -45,6 +76,24 @@ internal sealed class Bot
         }
 
         return Task.CompletedTask;
+    }
+
+    private void StopPolling()
+    {
+        var pollingCancellation = Volatile.Read(ref _pollingCancellation);
+        if (pollingCancellation is null)
+        {
+            return;
+        }
+
+        try
+        {
+            pollingCancellation.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Application shutdown won the race with the polling error callback.
+        }
     }
 
     private async Task UpdateHandler(

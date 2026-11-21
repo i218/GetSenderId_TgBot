@@ -16,6 +16,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly NotifyIcon _trayIcon;
     private readonly StatusForm _statusForm;
     private readonly RegisteredWaitHandle _activationRegistration;
+    private string _telegramHealth = "Healthy";
     private bool _exitRequested;
 
     internal TrayApplicationContext(
@@ -61,7 +62,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
             Timeout.Infinite,
             executeOnlyOnce: false);
 
-        _bot = new Bot(token, status => PostToUi(() => _statusForm.SetBotStatus(status)));
+        _bot = new Bot(
+            token,
+            status => PostToUi(() => _statusForm.SetBotStatus(status)),
+            health => Volatile.Write(ref _telegramHealth, health));
         _bot.Start(_shutdown.Token);
 
         _panelClient = new HttpClient
@@ -72,7 +76,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _reporter = new ServerPanelReporter(
             _panelClient,
             HandlePanelCommand,
-            available => PostToUi(() => _statusForm.SetPanelAvailable(available)));
+            available => PostToUi(() => _statusForm.SetPanelAvailable(available)),
+            () => Volatile.Read(ref _telegramHealth));
         _reporterTask = _reporter.RunAsync(_shutdown.Token);
 
         if (showOnStart)
@@ -92,6 +97,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _trayIcon.Dispose();
             _trayMenu.Dispose();
             _statusForm.Dispose();
+            _bot.Dispose();
             _reporter.Dispose();
             _panelClient.Dispose();
             _shutdown.Dispose();
