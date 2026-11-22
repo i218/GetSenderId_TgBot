@@ -10,7 +10,9 @@ internal sealed record PanelCommand(
     string? Action,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset LeaseExpiresAtUtc,
-    string? LeaseToken);
+    string? LeaseToken,
+    DateTimeOffset ExpiresAtUtc,
+    string? TargetSessionId);
 
 internal sealed record PanelCommandExecution(
     bool Succeeded,
@@ -20,6 +22,7 @@ internal sealed record PanelCommandExecution(
 internal sealed class ServerPanelReporter : IDisposable
 {
     private const string HostId = "get-sender-id-tgbot";
+    private const string HostCategory = "Telegram Bots";
     private static readonly TimeSpan Interval = TimeSpan.FromSeconds(5);
 
     private readonly HttpClient _http;
@@ -28,6 +31,7 @@ internal sealed class ServerPanelReporter : IDisposable
     private readonly Func<string> _healthProvider;
     private readonly Process _process = Process.GetCurrentProcess();
     private readonly Stopwatch _uptime = Stopwatch.StartNew();
+    private readonly string _sessionId = Guid.NewGuid().ToString("N");
     private TimeSpan _previousProcessorTime;
     private long _previousCpuTimestamp;
     private bool? _isAvailable;
@@ -61,6 +65,8 @@ internal sealed class ServerPanelReporter : IDisposable
                     new
                     {
                         name = "GetSenderId Telegram Bot",
+                        category = HostCategory,
+                        sessionId = _sessionId,
                         environment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production",
                         cpuPercent = GetCpuPercent(),
                         memoryMb = _process.WorkingSet64 / 1024d / 1024d,
@@ -72,7 +78,7 @@ internal sealed class ServerPanelReporter : IDisposable
                 heartbeatResponse.EnsureSuccessStatusCode();
 
                 var commands = await _http.GetFromJsonAsync<PanelCommand[]>(
-                    $"/api/hosts/{HostId}/commands",
+                    $"/api/hosts/{HostId}/commands?sessionId={_sessionId}",
                     stoppingToken) ?? [];
 
                 SetAvailability(true);
@@ -132,12 +138,20 @@ internal sealed class ServerPanelReporter : IDisposable
             return;
         }
 
+        if (command.ExpiresAtUtc <= DateTimeOffset.UtcNow ||
+            command.TargetSessionId is not null &&
+            !string.Equals(command.TargetSessionId, _sessionId, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         var execution = _commandHandler(command);
         using var acknowledgementResponse = await _http.PostAsJsonAsync(
             $"/api/hosts/{HostId}/commands/{Uri.EscapeDataString(command.Id)}/ack",
             new
             {
                 leaseToken = command.LeaseToken,
+                sessionId = _sessionId,
                 succeeded = execution.Succeeded,
                 result = execution.Result
             },

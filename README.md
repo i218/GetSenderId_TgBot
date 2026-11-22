@@ -56,6 +56,7 @@ http://127.0.0.1:5088
 The permanent host ID is `get-sender-id-tgbot`. The following information is reported every five seconds:
 
 - Process name
+- Category: `Telegram Bots`
 - Environment
 - Process CPU usage, normalized to a `0–100%` range across all logical processors
 - Memory usage
@@ -72,6 +73,8 @@ Commands are handled using a fixed allowlist:
 | `start` | Safe no-op: a process receiving the command is already running |
 | `stop` | Gracefully cancels polling and terminates the process |
 | `restart` | Starts the same trusted `.exe`, then terminates the current process |
+
+Each process creates a new ServerPanel session ID at startup. Heartbeats, command polling, and acknowledgements use that same ID, so stale `stop` or `restart` commands from an earlier bot process cannot affect the current one. Expired commands and commands aimed at another session are never executed.
 
 `restart` is rejected when the application is started with `dotnet run`, because the current process in that mode is the shared `dotnet.exe`, not the application executable.
 
