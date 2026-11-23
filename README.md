@@ -32,6 +32,16 @@ For regular desktop use, store it as a user-level environment variable rather th
 
 Restart the application after changing a persistent environment variable. `Secret.cs` is no longer required.
 
+## Releases
+
+The current application version is defined in `GetSenderId_TgBot/GetSenderId_TgBot.csproj`. Build the versioned, self-contained Windows x64 folder with:
+
+```powershell
+./releases/build.ps1 -Tag v1.0.0
+```
+
+The tag must match the project version. The generated folder is named `releases/GetSenderId-TgBot-<version>-win-x64` and is intentionally excluded from Git.
+
 ## System tray operation
 
 The application starts hidden and immediately places its icon in the Windows notification area.
